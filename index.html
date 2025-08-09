@@ -648,7 +648,6 @@
             <div class="metric-value" id="floatStatusDetail">LOW<span class="float-status-indicator low" id="floatIndicator"></span></div>
             <div class="metric-status" id="floatAlarmStatus">Normal</div>
             <div style="margin-top: 15px;">
-                <div>Raw GPIO: <span id="floatRaw">--</span></div>
                 <div>State Confirmed: <span id="floatConfirmed">--</span></div>
                 <div>Alarm Active: <span id="floatAlarm">No</span></div>
             </div>
@@ -1169,7 +1168,6 @@
                 document.getElementById('floatStatus').textContent = floatLevel;
                 document.getElementById('floatStatusDetail').innerHTML = floatLevel + 
                     `<span class="float-status-indicator ${floatLevel.toLowerCase()}" id="floatIndicator"></span>`;
-                document.getElementById('floatRaw').textContent = latestData.float?.raw_gpio_reading || '--';
                 document.getElementById('floatConfirmed').textContent = latestData.float?.state_confirmed ? 'Yes' : 'No';
                 document.getElementById('floatAlarm').textContent = floatAlarm ? 'YES' : 'No';
                 document.getElementById('floatAlarmStatus').textContent = floatAlarm ? 'ALARM' : 'Normal';
