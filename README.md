@@ -1,6 +1,6 @@
 # Getting Started
 
-Require arduino libraries
+These are require arduino libraries for this project
 ```
 Adafruit GFX library v1.12.1 - Oled Graphic Library
 Adafruit SSD1306 v2.5.15 - For Oled
