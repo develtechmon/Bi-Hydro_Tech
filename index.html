@@ -554,6 +554,7 @@
         <h1>🌊 BI-HYDRO TECH</h1>
         <p>Advanced Flood Detection & Monitoring System</p>
         <button class="refresh-button" onclick="refreshData()">🔄 Refresh Data</button>
+        <button class="refresh-button" onclick="exportToCSV()" style="margin-left: 15px; background: linear-gradient(45deg, #3b82f6, #1d4ed8);">📊 Export CSV</button>
     </div>
 
     <div class="status-bar">
@@ -1647,6 +1648,111 @@
             const minutes = Math.floor((diff % 3600) / 60);
             return `${hours}h ${minutes}m`;
         }
+
+        // CSV Export Function
+        window.exportToCSV = function() {
+            if (historicalData.length === 0) {
+                showError("No data available to export");
+                return;
+            }
+
+            // Prepare CSV headers
+            const headers = [
+                'Timestamp',
+                'RTC_Time', 
+                'Unix_Timestamp',
+                'Water_Distance_mm',
+                'Water_Distance_m',
+                'Water_Status',
+                'Sensor_Valid',
+                'Rain_Intensity_1h_mm',
+                'Rain_Status',
+                'Rain_Total_mm',
+                'Float_Level',
+                'Float_Alarm',
+                'Float_Confirmed',
+                'System_Status',
+                'Device_Location',
+                'Device_Type',
+                'Uptime_ms'
+            ];
+
+            // Prepare CSV data rows
+            const csvData = [];
+            csvData.push(headers.join(','));
+
+            // Sort data by timestamp (oldest first for export)
+            const sortedData = [...historicalData].sort((a, b) => parseInt(a.timestamp) - parseInt(b.timestamp));
+
+            sortedData.forEach(record => {
+                const row = [
+                    `"${record.timestamp}"`,
+                    `"${record.rtcTime || '--'}"`,
+                    record.metadata?.unix_timestamp || record.timestamp,
+                    record.ultrasonic?.distance_mm || 0,
+                    safeDistanceToMeters(record.ultrasonic?.distance_mm || 0),
+                    `"${record.ultrasonic?.water_status || 'NORMAL'}"`,
+                    record.ultrasonic?.is_valid === true ? 'TRUE' : record.ultrasonic?.is_valid === false ? 'FALSE' : 'UNKNOWN',
+                    record.rainfall?.intensity_1h_mm || 0,
+                    `"${record.rainfall?.intensity_status || 'NO_RAIN'}"`,
+                    record.rainfall?.total_mm || 0,
+                    `"${record.float?.water_level || 'LOW'}"`,
+                    record.float?.alarm_active === true ? 'TRUE' : 'FALSE',
+                    record.float?.state_confirmed === true ? 'TRUE' : 'FALSE',
+                    `"${record.system?.status || '--'}"`,
+                    `"${record.metadata?.device_location || '--'}"`,
+                    `"${record.metadata?.device_type || '--'}"`,
+                    record.system?.uptime_ms || 0
+                ];
+                csvData.push(row.join(','));
+            });
+
+            // Create CSV content
+            const csvContent = csvData.join('\n');
+
+            // Generate filename with current date and time
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0]; // YYYY-MM-DD
+            const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-'); // HH-MM-SS
+            const filename = `BI-HYDRO-TECH_SensorData_${dateStr}_${timeStr}.csv`;
+
+            // Create and trigger download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                
+                // Show success message
+                const alertContainer = document.getElementById('alertContainer');
+                const successBox = document.createElement('div');
+                successBox.className = 'alert-box';
+                successBox.style.background = 'linear-gradient(135deg, #10b981, #059669)';
+                successBox.innerHTML = `
+                    <span class="alert-icon">📊</span>
+                    <strong>✅ CSV Export Successful</strong><br>
+                    Downloaded ${sortedData.length} records to: ${filename}
+                `;
+                alertContainer.appendChild(successBox);
+                
+                // Auto-remove success message after 5 seconds
+                setTimeout(() => {
+                    if (successBox.parentNode) {
+                        successBox.parentNode.removeChild(successBox);
+                    }
+                }, 5000);
+                
+                console.log(`📊 CSV Export: ${sortedData.length} records exported to ${filename}`);
+            } else {
+                showError("CSV export not supported in this browser");
+            }
+        };
 
         // Make refreshData available globally
         window.refreshData = function() {
