@@ -781,6 +781,33 @@
             setInterval(loadData, 30000);
         });
 
+        // Function to parse RTC time string to Date object
+        function parseRTCTime(rtcTimeString) {
+            if (!rtcTimeString) return null;
+            
+            try {
+                // Parse format: "MON 11-08-2025 04:46:34"
+                // Extract date and time parts
+                const parts = rtcTimeString.split(' ');
+                if (parts.length < 3) return null;
+                
+                const datePart = parts[1]; // "11-08-2025"
+                const timePart = parts[2]; // "04:46:34"
+                
+                const [day, month, year] = datePart.split('-');
+                const [hours, minutes, seconds] = timePart.split(':');
+                
+                // Create Date object (month is 0-indexed in JavaScript)
+                const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 
+                                    parseInt(hours), parseInt(minutes), parseInt(seconds));
+                
+                return date;
+            } catch (error) {
+                console.error("Error parsing RTC time:", rtcTimeString, error);
+                return null;
+            }
+        }
+
         // NEW: Safe distance conversion function to handle NaN
         function safeDistanceToMeters(distanceMm) {
             // Handle invalid or NaN values
@@ -1018,18 +1045,23 @@
                         
                         // Only include actual sensor readings (filter out alerts)
                         if (!timestamp.includes('_FLOAT_ALERT') && !timestamp.includes('_ALERT')) {
+                            // Get RTC time from system.rtc_time or metadata.timestamp_readable
+                            const rtcTime = data.system?.rtc_time || data.metadata?.timestamp_readable;
+                            const parsedTime = parseRTCTime(rtcTime);
+                            
                             historicalData.push({
                                 timestamp: timestamp,
-                                time: new Date(parseInt(timestamp) * 1000),
+                                time: parsedTime || new Date(parseInt(timestamp) * 1000), // Fallback to unix timestamp
+                                rtcTime: rtcTime,
                                 ...data
                             });
                         }
                     });
                     
-                    // Sort by timestamp (newest first for display)
-                    historicalData.sort((a, b) => parseInt(b.timestamp) - parseInt(a.timestamp));
+                    // Sort by RTC time (newest first for display)
+                    historicalData.sort((a, b) => b.time.getTime() - a.time.getTime());
                     
-                    console.log(`📊 Loaded ${historicalData.length} historical records for time-based analysis`);
+                    console.log(`📊 Loaded ${historicalData.length} historical records using RTC timestamps`);
                     
                     // Update all displays that depend on historical data
                     updateHistoricalDataTable();
@@ -1074,7 +1106,7 @@
             }
         }
 
-        // Group data by time intervals (15 min, 1 hour, etc.)
+        // Group data by time intervals (15 min, 1 hour, etc.) - UPDATED TO USE RTC TIME
         function groupDataByTimeInterval(data, intervalMinutes) {
             if (!data || data.length === 0) return [];
             
@@ -1082,8 +1114,12 @@
             const groupedData = new Map();
             
             data.forEach(reading => {
+                // Use the parsed RTC time instead of unix timestamp
+                const readingTime = reading.time;
+                if (!readingTime || isNaN(readingTime.getTime())) return;
+                
                 // Round timestamp to the nearest interval
-                const roundedTime = new Date(Math.floor(reading.time.getTime() / intervalMs) * intervalMs);
+                const roundedTime = new Date(Math.floor(readingTime.getTime() / intervalMs) * intervalMs);
                 const timeKey = roundedTime.getTime();
                 
                 if (!groupedData.has(timeKey)) {
@@ -1198,7 +1234,16 @@
                 
                 document.getElementById('ultrasonicValid').textContent = sensorValid ? 'Valid ✅' : 'Invalid ❌';
                 document.getElementById('systemUptime').textContent = formatUptime(latestData.system?.upload_time);
-                document.getElementById('lastReading').textContent = new Date().toLocaleTimeString();
+                
+                // Use RTC time for last reading display
+                const rtcTime = latestData.system?.rtc_time || latestData.readable_time;
+                if (rtcTime) {
+                    // Extract just the time part from RTC format "MON 11-08-2025 04:46:34"
+                    const timePart = rtcTime.split(' ')[2] || rtcTime;
+                    document.getElementById('lastReading').textContent = timePart;
+                } else {
+                    document.getElementById('lastReading').textContent = new Date().toLocaleTimeString();
+                }
                 
                 // Update system status
                 updateSystemStatus();
@@ -1206,8 +1251,13 @@
                 // Show alerts if needed
                 updateAlerts();
 
-                // Update last update time
-                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                // Update last update time using RTC time
+                if (rtcTime) {
+                    const timePart = rtcTime.split(' ')[2] || rtcTime;
+                    document.getElementById('lastUpdate').textContent = timePart;
+                } else {
+                    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                }
 
             } catch (error) {
                 console.error("Error updating current status:", error);
@@ -1215,7 +1265,7 @@
             }
         }
 
-        // FIXED: Update Historical Data Table with proper NaN handling
+        // UPDATED: Historical Data Table with RTC timestamps
         function updateHistoricalDataTable() {
             const tbody = document.getElementById('recentDataTable');
             tbody.innerHTML = '';
@@ -1225,21 +1275,35 @@
                 return;
             }
 
-            console.log(`📋 Displaying last 20 of ${historicalData.length} historical records`);
+            console.log(`📋 Displaying last 20 of ${historicalData.length} historical records with RTC timestamps`);
 
             // Show last 20 historical readings (newest first)
             const recentData = historicalData.slice(0, 20);
             recentData.forEach((data, index) => {
                 const row = document.createElement('tr');
                 
-                // Format timestamp as readable date/time
-                const formattedTime = data.time.toLocaleString('en-US', { 
-                    month: '2-digit',
-                    day: '2-digit',
-                    hour: '2-digit', 
-                    minute: '2-digit',
-                    second: '2-digit'
-                });
+                // Use RTC time for display - format: "MON 11-08-2025 04:46:34"
+                let formattedTime = '--';
+                if (data.rtcTime) {
+                    // Extract date and time parts from RTC format
+                    const parts = data.rtcTime.split(' ');
+                    if (parts.length >= 3) {
+                        const datePart = parts[1]; // "11-08-2025"  
+                        const timePart = parts[2]; // "04:46:34"
+                        formattedTime = `${datePart} ${timePart}`;
+                    } else {
+                        formattedTime = data.rtcTime;
+                    }
+                } else {
+                    // Fallback to regular date formatting
+                    formattedTime = data.time.toLocaleString('en-US', { 
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        second: '2-digit'
+                    });
+                }
                 
                 // FIXED: Safe distance conversion - no more NaN!
                 const distanceMm = data.ultrasonic?.distance_mm;
@@ -1268,7 +1332,7 @@
                 tbody.appendChild(row);
             });
             
-            console.log(`✅ Historical data table updated with ${recentData.length} entries`);
+            console.log(`✅ Historical data table updated with ${recentData.length} entries using RTC timestamps`);
         }
 
         function updateCharts() {
@@ -1279,11 +1343,11 @@
             updateRainIntensityChart();
         }
 
-        // Update Water Level Trend Chart - 15 MINUTE INTERVALS
+        // UPDATED: Water Level Trend Chart - 15 MINUTE INTERVALS with RTC time
         function updateWaterLevelChart() {
             if (!waterLevelChart) return;
 
-            // Group data by 15-minute intervals
+            // Group data by 15-minute intervals using RTC time
             const fifteenMinuteData = groupDataByTimeInterval(historicalData, 15); // 15 minutes
             
             // Get last 24 intervals (6 hours of data in 15-min chunks)
@@ -1305,7 +1369,7 @@
             waterLevelChart.data.datasets[0].data = distances;
             waterLevelChart.update('none');
             
-            console.log(`📊 Water Level Chart: ${recentData.length} data points (15-min intervals)`);
+            console.log(`📊 Water Level Chart: ${recentData.length} data points (15-min intervals) using RTC time`);
         }
 
         // Update Water Status Distribution Chart
@@ -1333,11 +1397,11 @@
             waterStatusChart.update('none');
         }
 
-        // Update Rain Intensity Chart - HOURLY INTERVALS
+        // UPDATED: Rain Intensity Chart - HOURLY INTERVALS with RTC time
         function updateRainIntensityChart() {
             if (!rainIntensityChart) return;
 
-            // Group data by 1-hour intervals
+            // Group data by 1-hour intervals using RTC time
             const hourlyData = groupDataByTimeInterval(historicalData, 60); // 60 minutes = 1 hour
             
             // Get last 24 hours of data
@@ -1377,7 +1441,7 @@
             
             rainIntensityChart.update('none');
             
-            console.log(`🌧️ Rain Chart: ${recentRainData.length} data points (1-hour intervals)`);
+            console.log(`🌧️ Rain Chart: ${recentRainData.length} data points (1-hour intervals) using RTC time`);
         }
 
         function updateStatistics() {
@@ -1603,7 +1667,13 @@
             console.log('🔍 Firebase Debug Info:');
             console.log('Latest data:', latestData);
             console.log('Historical data count:', historicalData.length);
-            console.log('Last 5 readings:', historicalData.slice(0, 5));
+            console.log('Last 5 readings with RTC timestamps:', historicalData.slice(0, 5).map(d => ({
+                timestamp: d.timestamp,
+                rtcTime: d.rtcTime,
+                parsedTime: d.time,
+                waterLevel: d.ultrasonic?.water_status,
+                distance: d.ultrasonic?.distance_mm
+            })));
             
             // Test the safe distance conversion
             console.log('\n🔧 Testing safeDistanceToMeters function:');
@@ -1611,6 +1681,20 @@
             testCases.forEach(testValue => {
                 const result = safeDistanceToMeters(testValue);
                 console.log(`Input: ${testValue} → Output: ${result}m`);
+            });
+            
+            // Test RTC time parsing
+            console.log('\n⏰ Testing parseRTCTime function:');
+            const testRTCTimes = [
+                'MON 11-08-2025 04:46:34',
+                'TUE 12-08-2025 15:30:22',
+                'invalid-format',
+                null,
+                undefined
+            ];
+            testRTCTimes.forEach(testTime => {
+                const result = parseRTCTime(testTime);
+                console.log(`Input: "${testTime}" → Output:`, result);
             });
         };
     </script>
