@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BI-HYDRO TECH - Flood Monitoring Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f1419 0%, #1a2332 100%);
+            color: #ffffff;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        .dashboard-header {
+            background: linear-gradient(90deg, #1e3a8a 0%, #3b82f6 100%);
+            padding: 30px;
+            text-align: center;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dashboard-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -50%;
+            width: 200%;
+            height: 100%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .dashboard-header h1 {
+            font-size: 2.8rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .dashboard-header p {
+            opacity: 0.9;
+            font-size: 1.2rem;
+            position: relative;
+            z-index: 1;
+            margin-bottom: 15px;
+        }
+
+        .status-bar {
+            background: rgba(0,0,0,0.3);
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #93c5fd;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-online { background: #10b981; }
+        .status-warning { background: #f59e0b; }
+        .status-error { background: #ef4444; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .refresh-button {
+            background: linear-gradient(45deg, #10b981, #059669);
+            border: none;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            position: relative;
+            z-index: 1;
+        }
+
+        .refresh-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+        }
+
+        .refresh-button.loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .alert-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 25px;
+        }
+
+        .alert-box {
+            background: linear-gradient(135deg, #dc2626, #b91c1c);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 5px solid #fbbf24;
+            animation: alertPulse 2s infinite;
+            box-shadow: 0 4px 20px rgba(220, 38, 38, 0.3);
+        }
+
+        @keyframes alertPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.9; }
+        }
+
+        .alert-icon {
+            font-size: 1.5rem;
+            margin-right: 10px;
+        }
+
+        /* Status Cards Grid */
+        .status-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            padding: 25px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .status-card {
+            background: linear-gradient(145deg, #1f2937, #111827);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s ease;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .status-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #10b981, #f59e0b, #ef4444);
+            opacity: 0.7;
+        }
+
+        .status-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        }
+
+        .status-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #3b82f6, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .status-label {
+            color: #9ca3af;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 25px;
+            padding: 25px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .card {
+            background: linear-gradient(145deg, #1f2937, #111827);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #10b981, #f59e0b, #ef4444);
+            opacity: 0.7;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px rgba(0,0,0,0.4);
+        }
+
+        .card-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #93c5fd;
+        }
+
+        .metric-value {
+            font-size: 3rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #3b82f6, #10b981);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .metric-unit {
+            font-size: 1.2rem;
+            color: #9ca3af;
+            margin-left: 10px;
+        }
+
+        .metric-status {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            display: inline-block;
+            margin-top: 10px;
+        }
+
+        .status-normal { 
+            background: rgba(16, 185, 129, 0.2); 
+            color: #10b981 !important; 
+        }
+        .status-watch { 
+            background: rgba(245, 158, 11, 0.2); 
+            color: #f59e0b !important; 
+        }
+        .status-warning { 
+            background: rgba(239, 68, 68, 0.2); 
+            color: #ef4444 !important; 
+        }
+        .status-critical { 
+            background: rgba(220, 38, 127, 0.2); 
+            color: #dc2671 !important; 
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin-bottom: 20px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+
+        .data-table th,
+        .data-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .data-table th {
+            color: #93c5fd;
+            font-weight: 600;
+            background: rgba(0,0,0,0.2);
+        }
+
+        .data-table tr:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-item {
+            text-align: center;
+            padding: 15px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .stat-number {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #3b82f6;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #9ca3af;
+        }
+
+        .error-message {
+            background: rgba(239, 68, 68, 0.2);
+            border: 1px solid #ef4444;
+            color: #fecaca;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        @media (max-width: 768px) {
+            .status-cards {
+                grid-template-columns: 1fr;
+                padding: 15px;
+            }
+            
+            .main-grid {
+                grid-template-columns: 1fr;
+                padding: 15px;
+            }
+            
+            .status-bar {
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .dashboard-header h1 {
+                font-size: 2rem;
+            }
+            
+            .status-value, .metric-value {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <h1>🌊 BI-HYDRO TECH</h1>
+        <p>Advanced Flood Detection & Monitoring System</p>
+        <button class="refresh-button" onclick="refreshData()">🔄 Refresh Data</button>
+    </div>
+
+    <div class="status-bar">
+        <div class="status-item">
+            <div class="status-indicator status-online" id="systemStatus"></div>
+            <span>System Status: <span id="systemStatusText">Online</span></span>
+        </div>
+        <div class="status-item">
+            <span>Last Update: <span id="lastUpdate">--</span></span>
+        </div>
+        <div class="status-item">
+            <span>Total Records: <span id="totalRecords">--</span></span>
+        </div>
+        <div class="status-item">
+            <span>Valid Readings: <span id="validReadings">--</span>%</span>
+        </div>
+    </div>
+
+    <div class="alert-container">
+        <div id="alertContainer"></div>
+    </div>
+
+    <!-- Status Cards Section -->
+    <div class="status-cards">
+        <div class="status-card">
+            <div class="status-value" id="waterDistance">--</div>
+            <div class="status-label">💧 Water Level (mm)</div>
+        </div>
+        <div class="status-card">
+            <div class="status-value" id="waterLevel">--</div>
+            <div class="status-label">🌊 Water Level Status</div>
+        </div>
+        <div class="status-card">
+            <div class="status-value" id="rainIntensity">--</div>
+            <div class="status-label">🌧️ Rain Intensity (mm/h)</div>
+        </div>
+        <div class="status-card">
+            <div class="status-value" id="floatStatus">--</div>
+            <div class="status-label">🎈 Float Status</div>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <!-- Water Level Distance -->
+        <div class="card">
+            <h3 class="card-title">💧 Water Level</h3>
+            <div class="metric-value" id="waterDistanceDetail">--</div>
+            <span class="metric-unit">mm</span>
+            <div class="metric-status" id="distanceStatus">Normal</div>
+            <div style="margin-top: 20px; color: #9ca3af;">
+                <div>Sensor Status: <span id="ultrasonicValid">--</span></div>
+                <div>Last Reading: <span id="lastReading">--</span></div>
+            </div>
+        </div>
+
+        <!-- Water Level Status -->
+        <div class="card">
+            <h3 class="card-title">🌊 Water Level Status</h3>
+            <div class="metric-value" id="waterLevelDetail">NORMAL</div>
+            <div class="metric-status" id="waterLevelStatus">Safe</div>
+            <div style="margin-top: 20px;">
+                <div style="margin: 10px 0; color: #9ca3af;">Normal: < 200mm</div>
+                <div style="margin: 10px 0; color: #9ca3af;">Watch: 200-500mm</div>
+                <div style="margin: 10px 0; color: #9ca3af;">Warning: 500-800mm</div>
+                <div style="margin: 10px 0; color: #9ca3af;">Critical: > 800mm</div>
+            </div>
+        </div>
+
+        <!-- Rain Intensity -->
+        <div class="card">
+            <h3 class="card-title">🌧️ Rain Intensity</h3>
+            <div class="metric-value" id="rainIntensityDetail">--</div>
+            <span class="metric-unit">mm/h</span>
+            <div class="metric-status" id="rainStatus">No Rain</div>
+            <div style="margin-top: 15px;">
+                <div>Current Hour: <span id="rain1H">0</span> mm</div>
+                <div>Total: <span id="rainTotal">0</span> mm</div>
+            </div>
+        </div>
+
+        <!-- Float Status -->
+        <div class="card">
+            <h3 class="card-title">🎈 Float Sensor Status</h3>
+            <div class="metric-value" id="floatStatusDetail">LOW</div>
+            <div class="metric-status" id="floatAlarmStatus">Normal</div>
+            <div style="margin-top: 15px;">
+                <div>Raw GPIO: <span id="floatRaw">--</span></div>
+                <div>State Confirmed: <span id="floatConfirmed">--</span></div>
+                <div>Alarm Active: <span id="floatAlarm">No</span></div>
+            </div>
+        </div>
+
+        <!-- Water Level Trend Chart -->
+        <div class="card">
+            <h3 class="card-title">📊 Water Level Trend</h3>
+            <div class="chart-container">
+                <canvas id="waterLevelChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Water Status Distribution Chart (NEW) -->
+        <div class="card">
+            <h3 class="card-title">🌊 Water Level Status Distribution</h3>
+            <div class="chart-container">
+                <canvas id="waterStatusChart"></canvas>
+            </div>
+            <div style="margin-top: 15px; color: #9ca3af; font-size: 0.9rem;">
+                <div>📊 Shows percentage of time spent in each water level status</div>
+            </div>
+        </div>
+
+        <!-- Rain Intensity Chart (NEW) -->
+        <div class="card">
+            <h3 class="card-title">🌧️ Rainfall Intensity Over Time</h3>
+            <div class="chart-container">
+                <canvas id="rainIntensityChart"></canvas>
+            </div>
+            <div style="margin-top: 15px; color: #9ca3af; font-size: 0.9rem;">
+                <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                    <span>🟢 No Rain (0mm)</span>
+                    <span>🔵 Light (0-10mm)</span>
+                    <span>🟡 Moderate (10-30mm)</span>
+                    <span>🔴 Heavy (30-60mm)</span>
+                    <span>🟣 Very Heavy (60mm+)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Statistics -->
+        <div class="card">
+            <h3 class="card-title">📈 System Statistics</h3>
+            <div class="stats-grid">
+                <div class="stat-item">
+                    <div class="stat-number" id="totalReadings">0</div>
+                    <div class="stat-label">Total Readings</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="avgDistance">0</div>
+                    <div class="stat-label">Avg Distance</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="floatAlarms">0</div>
+                    <div class="stat-label">Float Alarms</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="systemUptime">--</div>
+                    <div class="stat-label">Uptime</div>
+                </div>
+            </div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Water Status</th>
+                        <th>Count</th>
+                        <th>Percentage</th>
+                    </tr>
+                </thead>
+                <tbody id="statusBreakdown">
+                    <tr><td colspan="3" style="text-align: center;">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Recent Historical Data -->
+        <div class="card" style="grid-column: 1 / -1;">
+            <h3 class="card-title">📈 Historical Sensor Data</h3>
+            <div style="overflow-x: auto;">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Level (mm)</th>
+                            <th>Valid</th>
+                            <th>Water Status</th>
+                            <th>Rain (mm/h)</th>
+                            <th>Float</th>
+                            <th>System Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="recentDataTable">
+                        <tr>
+                            <td colspan="7" style="text-align: center; color: #6b7280;">Loading historical data...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // Firebase configuration - Using your working config
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+        import { getDatabase, ref, onValue, query, orderByKey, limitToLast } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js';
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyArWYq8-Zog6C_kjwXjp_tdhwLTHDatp9Y",
+            databaseURL: "https://bi-hydro-tech-2b024-default-rtdb.asia-southeast1.firebasedatabase.app/",
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+
+        let latestData = null;
+        let historicalData = [];
+        let waterLevelChart = null;
+        let waterStatusChart = null;
+        let rainIntensityChart = null;
+
+        // Initialize dashboard
+        window.addEventListener('load', function() {
+            initCharts();
+            loadData();
+            // Auto-refresh every 30 seconds
+            setInterval(loadData, 30000);
+        });
+
+        // Initialize All Charts
+        function initCharts() {
+            initWaterLevelChart();
+            initWaterStatusChart();
+            initRainIntensityChart();
+        }
+
+        // Water Level Trend Chart
+        function initWaterLevelChart() {
+            const ctx = document.getElementById('waterLevelChart').getContext('2d');
+            waterLevelChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Water Distance (mm)',
+                        data: [],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        pointBackgroundColor: '#3b82f6',
+                        pointBorderColor: '#1d4ed8'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#9ca3af' }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#9ca3af' },
+                            grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                        },
+                        y: {
+                            ticks: { color: '#9ca3af' },
+                            grid: { color: 'rgba(156, 163, 175, 0.1)' },
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Distance (mm)',
+                                color: '#9ca3af'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Water Status Distribution Chart
+        function initWaterStatusChart() {
+            const ctx = document.getElementById('waterStatusChart').getContext('2d');
+            waterStatusChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Normal', 'Watch', 'Warning', 'Critical'],
+                    datasets: [{
+                        data: [0, 0, 0, 0],
+                        backgroundColor: [
+                            '#10b981', // Normal - Green
+                            '#f59e0b', // Watch - Yellow
+                            '#ef4444', // Warning - Red
+                            '#dc2671'  // Critical - Pink
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#1f2937'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#9ca3af',
+                                padding: 15,
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const percentage = total > 0 ? ((context.raw / total) * 100).toFixed(1) : 0;
+                                    return `${context.label}: ${context.raw} readings (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Rain Intensity Chart
+        function initRainIntensityChart() {
+            const ctx = document.getElementById('rainIntensityChart').getContext('2d');
+            rainIntensityChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Rainfall (mm/h)',
+                        data: [],
+                        backgroundColor: function(context) {
+                            const value = context.raw;
+                            if (value === 0) return 'rgba(16, 185, 129, 0.6)'; // No rain - Green
+                            if (value < 10) return 'rgba(59, 130, 246, 0.6)';  // Light - Blue
+                            if (value < 30) return 'rgba(245, 158, 11, 0.6)';  // Moderate - Yellow
+                            if (value < 60) return 'rgba(239, 68, 68, 0.6)';   // Heavy - Red
+                            return 'rgba(220, 38, 127, 0.6)';                  // Very Heavy - Pink
+                        },
+                        borderColor: function(context) {
+                            const value = context.raw;
+                            if (value === 0) return '#10b981';
+                            if (value < 10) return '#3b82f6';
+                            if (value < 30) return '#f59e0b';
+                            if (value < 60) return '#ef4444';
+                            return '#dc2671';
+                        },
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#9ca3af' }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.raw;
+                                    let intensity = 'No Rain';
+                                    if (value > 0 && value < 10) intensity = 'Light Rain';
+                                    else if (value >= 10 && value < 30) intensity = 'Moderate Rain';
+                                    else if (value >= 30 && value < 60) intensity = 'Heavy Rain';
+                                    else if (value >= 60) intensity = 'Very Heavy Rain';
+                                    
+                                    return `${context.label}: ${value} mm/h (${intensity})`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            ticks: { color: '#9ca3af' },
+                            grid: { color: 'rgba(156, 163, 175, 0.1)' }
+                        },
+                        y: {
+                            ticks: { color: '#9ca3af' },
+                            grid: { color: 'rgba(156, 163, 175, 0.1)' },
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Rainfall Intensity (mm/h)',
+                                color: '#9ca3af'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function loadData() {
+            console.log("Loading data from Firebase...");
+            
+            // Get latest data for current status display
+            const latestRef = ref(database, 'latest');
+            onValue(latestRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    latestData = snapshot.val();
+                    updateCurrentStatus();
+                } else {
+                    console.log("No latest data found, trying most recent sensor data...");
+                    loadMostRecentSensorData();
+                }
+            }, (error) => {
+                console.error("Error loading latest data:", error);
+                loadMostRecentSensorData(); // Fallback to sensor data
+            });
+
+            // Get historical sensor data - THIS IS THE KEY CHANGE
+            const sensorRef = query(ref(database, 'sensorData'), orderByKey(), limitToLast(50));
+            onValue(sensorRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    historicalData = [];
+                    snapshot.forEach((childSnapshot) => {
+                        const timestamp = childSnapshot.key;
+                        const data = childSnapshot.val();
+                        
+                        // Only include actual sensor readings (filter out alerts)
+                        if (!timestamp.includes('_FLOAT_ALERT') && !timestamp.includes('_ALERT')) {
+                            historicalData.push({
+                                timestamp: timestamp,
+                                time: new Date(parseInt(timestamp) * 1000),
+                                ...data
+                            });
+                        }
+                    });
+                    
+                    // Sort by timestamp (newest first for display)
+                    historicalData.sort((a, b) => parseInt(b.timestamp) - parseInt(a.timestamp));
+                    
+                    console.log(`📊 Loaded ${historicalData.length} historical records`);
+                    
+                    // Update all displays that depend on historical data
+                    updateHistoricalDataTable();
+                    updateCharts();
+                    updateStatistics();
+                }
+            }, (error) => {
+                console.error("Error loading historical data:", error);
+                showError("Failed to load historical sensor data");
+            });
+        }
+
+        function loadMostRecentSensorData() {
+            // Fallback: get most recent sensor data if 'latest' doesn't exist
+            const sensorRef = query(ref(database, 'sensorData'), orderByKey(), limitToLast(1));
+            onValue(sensorRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    snapshot.forEach((childSnapshot) => {
+                        latestData = childSnapshot.val();
+                        updateCurrentStatus();
+                    });
+                } else {
+                    showError("No data available from Firebase");
+                }
+            });
+        }
+
+        function updateCurrentStatus() {
+            if (!latestData) return;
+
+            try {
+                // Update water distance (both status cards and detailed cards)
+                const distance = latestData.ultrasonic?.distance_mm || 0;
+                document.getElementById('waterDistance').textContent = distance;
+                document.getElementById('waterDistanceDetail').textContent = distance;
+                
+                // Update water level status
+                const waterStatus = latestData.ultrasonic?.water_status || 'NORMAL';
+                document.getElementById('waterLevel').textContent = waterStatus;
+                document.getElementById('waterLevelDetail').textContent = waterStatus;
+                document.getElementById('waterLevelStatus').textContent = waterStatus;
+                document.getElementById('waterLevelStatus').className = `metric-status ${getStatusClass(waterStatus)}`;
+
+                // Update distance status
+                document.getElementById('distanceStatus').textContent = waterStatus;
+                document.getElementById('distanceStatus').className = `metric-status ${getStatusClass(waterStatus)}`;
+
+                // Update rain data
+                const rainIntensity = latestData.rainfall?.intensity_1h_mm || 0;
+                const rainStatus = latestData.rainfall?.intensity_status || 'NO_RAIN';
+                document.getElementById('rainIntensity').textContent = rainIntensity.toFixed(1);
+                document.getElementById('rainIntensityDetail').textContent = rainIntensity.toFixed(1);
+                document.getElementById('rain1H').textContent = rainIntensity.toFixed(1);
+                document.getElementById('rainTotal').textContent = (latestData.rainfall?.total_mm || 0).toFixed(1);
+                document.getElementById('rainStatus').textContent = getRainStatusText(rainStatus);
+                document.getElementById('rainStatus').className = `metric-status ${getRainStatusClass(rainStatus)}`;
+
+                // Update float status
+                const floatLevel = latestData.float?.water_level || 'LOW';
+                const floatAlarm = latestData.float?.alarm_active || false;
+                document.getElementById('floatStatus').textContent = floatLevel;
+                document.getElementById('floatStatusDetail').textContent = floatLevel;
+                document.getElementById('floatRaw').textContent = latestData.float?.raw_gpio_reading || '--';
+                document.getElementById('floatConfirmed').textContent = latestData.float?.state_confirmed ? 'Yes' : 'No';
+                document.getElementById('floatAlarm').textContent = floatAlarm ? 'YES' : 'No';
+                document.getElementById('floatAlarmStatus').textContent = floatAlarm ? 'ALARM' : 'Normal';
+                document.getElementById('floatAlarmStatus').className = `metric-status ${floatAlarm ? 'status-critical' : 'status-normal'}`;
+
+                // Update sensor validation - IMPROVED LOGIC
+                const hasValidReading = latestData.ultrasonic?.distance_mm > 0;
+                const isExplicitlyValid = latestData.ultrasonic?.is_valid === true;
+                const sensorValid = isExplicitlyValid || (hasValidReading && latestData.ultrasonic?.is_valid !== false);
+                
+                document.getElementById('ultrasonicValid').textContent = sensorValid ? 'Valid ✅' : 'Invalid ❌';
+                document.getElementById('systemUptime').textContent = formatUptime(latestData.system?.upload_time);
+                document.getElementById('lastReading').textContent = new Date().toLocaleTimeString();
+                
+                // Update system status
+                updateSystemStatus();
+                
+                // Show alerts if needed
+                updateAlerts();
+
+                // Update last update time
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+
+            } catch (error) {
+                console.error("Error updating current status:", error);
+                showError("Error updating dashboard: " + error.message);
+            }
+        }
+
+        // NEW FUNCTION: Update Historical Data Table with REAL historical data
+        function updateHistoricalDataTable() {
+            const tbody = document.getElementById('recentDataTable');
+            tbody.innerHTML = '';
+
+            if (historicalData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: #6b7280;">No historical data available</td></tr>';
+                return;
+            }
+
+            console.log(`📋 Displaying last 20 of ${historicalData.length} historical records`);
+
+            // Show last 20 historical readings (newest first)
+            const recentData = historicalData.slice(0, 20);
+            recentData.forEach((data, index) => {
+                const row = document.createElement('tr');
+                
+                // Format timestamp as readable date/time
+                const formattedTime = data.time.toLocaleString('en-US', { 
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+                
+                const distance = data.ultrasonic?.distance_mm || '--';
+                const isValid = data.ultrasonic?.is_valid;
+                const waterLevel = data.ultrasonic?.water_status || '--';
+                const rainIntensity = data.rainfall?.intensity_1h_mm?.toFixed(1) || '--';
+                const floatStatus = data.float?.water_level || '--';
+                const systemStatus = data.system?.status || '--';
+
+                // Add visual indicators for better readability
+                const validIcon = isValid === true ? '✅' : isValid === false ? '❌' : '❓';
+                const floatIcon = floatStatus === 'HIGH' ? '🚨' : '✅';
+
+                row.innerHTML = `
+                    <td style="font-family: monospace; font-size: 0.85rem;">${formattedTime}</td>
+                    <td><strong>${distance}</strong>mm</td>
+                    <td>${validIcon}</td>
+                    <td class="status-${(waterLevel || 'normal').toLowerCase()}"><strong>${waterLevel}</strong></td>
+                    <td>${rainIntensity}mm/h</td>
+                    <td class="${(floatStatus === 'HIGH') ? 'status-critical' : 'status-normal'}">${floatIcon} ${floatStatus}</td>
+                    <td>${systemStatus}</td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+            
+            console.log(`✅ Historical data table updated with ${recentData.length} entries`);
+        }
+
+        function updateCharts() {
+            if (historicalData.length === 0) return;
+
+            updateWaterLevelChart();
+            updateWaterStatusChart();
+            updateRainIntensityChart();
+        }
+
+        // Update Water Level Trend Chart
+        function updateWaterLevelChart() {
+            if (!waterLevelChart) return;
+
+            // Get last 20 valid readings for the trend chart
+            const validReadings = historicalData
+                .filter(d => d.ultrasonic?.is_valid !== false && d.ultrasonic?.distance_mm > 0)
+                .slice(0, 20)
+                .reverse(); // Reverse to show chronological order in chart
+
+            const labels = validReadings.map(d => d.time.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            }));
+            const distances = validReadings.map(d => d.ultrasonic?.distance_mm || 0);
+            
+            waterLevelChart.data.labels = labels;
+            waterLevelChart.data.datasets[0].data = distances;
+            waterLevelChart.update('none');
+        }
+
+        // Update Water Status Distribution Chart
+        function updateWaterStatusChart() {
+            if (!waterStatusChart) return;
+
+            // Count occurrences of each water status
+            const statusCounts = { 'NORMAL': 0, 'WATCH': 0, 'WARNING': 0, 'CRITICAL': 0 };
+            
+            historicalData.forEach(d => {
+                const status = d.ultrasonic?.water_status || 'NORMAL';
+                if (statusCounts.hasOwnProperty(status)) {
+                    statusCounts[status]++;
+                }
+            });
+
+            // Update chart data
+            waterStatusChart.data.datasets[0].data = [
+                statusCounts.NORMAL,
+                statusCounts.WATCH,
+                statusCounts.WARNING,
+                statusCounts.CRITICAL
+            ];
+            
+            waterStatusChart.update('none');
+        }
+
+        // Update Rain Intensity Chart
+        function updateRainIntensityChart() {
+            if (!rainIntensityChart) return;
+
+            // Get last 24 readings for rainfall intensity (about 12 hours of data)
+            const recentRainData = historicalData.slice(0, 24).reverse();
+            
+            const labels = recentRainData.map(d => d.time.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            }));
+            
+            const rainIntensities = recentRainData.map(d => d.rainfall?.intensity_1h_mm || 0);
+            
+            rainIntensityChart.data.labels = labels;
+            rainIntensityChart.data.datasets[0].data = rainIntensities;
+            
+            // Update colors based on intensity values
+            rainIntensityChart.data.datasets[0].backgroundColor = rainIntensities.map(value => {
+                if (value === 0) return 'rgba(16, 185, 129, 0.6)'; // No rain - Green
+                if (value < 10) return 'rgba(59, 130, 246, 0.6)';  // Light - Blue
+                if (value < 30) return 'rgba(245, 158, 11, 0.6)';  // Moderate - Yellow
+                if (value < 60) return 'rgba(239, 68, 68, 0.6)';   // Heavy - Red
+                return 'rgba(220, 38, 127, 0.6)';                  // Very Heavy - Pink
+            });
+            
+            rainIntensityChart.data.datasets[0].borderColor = rainIntensities.map(value => {
+                if (value === 0) return '#10b981';
+                if (value < 10) return '#3b82f6';
+                if (value < 30) return '#f59e0b';
+                if (value < 60) return '#ef4444';
+                return '#dc2671';
+            });
+            
+            rainIntensityChart.update('none');
+        }
+
+        function updateStatistics() {
+            if (historicalData.length === 0) return;
+
+            const totalReadings = historicalData.length;
+            document.getElementById('totalReadings').textContent = totalReadings;
+            document.getElementById('totalRecords').textContent = totalReadings;
+
+            // Calculate averages and statistics
+            const validDistances = historicalData
+                .filter(d => d.ultrasonic?.is_valid !== false && d.ultrasonic?.distance_mm > 0)
+                .map(d => d.ultrasonic?.distance_mm);
+            
+            const avgDistance = validDistances.length > 0 ? 
+                Math.round(validDistances.reduce((a, b) => a + b, 0) / validDistances.length) : 0;
+            
+            document.getElementById('avgDistance').textContent = avgDistance + 'mm';
+
+            // Count float alarms
+            const floatAlarmCount = historicalData.filter(d => d.float?.alarm_active === true).length;
+            document.getElementById('floatAlarms').textContent = floatAlarmCount;
+
+            // Valid readings percentage
+            const validCount = historicalData.filter(d => d.ultrasonic?.is_valid !== false).length;
+            const validPercentage = totalReadings > 0 ? Math.round((validCount / totalReadings) * 100) : 0;
+            document.getElementById('validReadings').textContent = validPercentage;
+
+            // Status breakdown
+            const statusCounts = { 'NORMAL': 0, 'WATCH': 0, 'WARNING': 0, 'CRITICAL': 0 };
+            historicalData.forEach(d => {
+                const status = d.ultrasonic?.water_status || 'NORMAL';
+                if (statusCounts.hasOwnProperty(status)) {
+                    statusCounts[status]++;
+                }
+            });
+
+            const breakdown = document.getElementById('statusBreakdown');
+            breakdown.innerHTML = '';
+            Object.entries(statusCounts).forEach(([status, count]) => {
+                const percentage = totalReadings > 0 ? 
+                    ((count / totalReadings) * 100).toFixed(1) : '0';
+                breakdown.innerHTML += `
+                    <tr>
+                        <td class="status-${status.toLowerCase()}">${status}</td>
+                        <td>${count}</td>
+                        <td>${percentage}%</td>
+                    </tr>
+                `;
+            });
+        }
+
+        function updateSystemStatus() {
+            const statusIndicator = document.getElementById('systemStatus');
+            const statusText = document.getElementById('systemStatusText');
+            
+            // Check multiple sources for system status
+            let isOnline = false;
+            let lastUpdateTime = null;
+            
+            // Method 1: Check latest data for system status
+            if (latestData && latestData.system?.status === 'ONLINE') {
+                isOnline = true;
+            }
+            
+            // Method 2: Check if we have recent data (within last 5 minutes)
+            if (latestData || historicalData.length > 0) {
+                const now = Date.now() / 1000;
+                
+                // Check latest data timestamp
+                if (latestData && latestData.system?.upload_time) {
+                    lastUpdateTime = latestData.system.upload_time;
+                }
+                
+                // Check most recent historical data
+                if (historicalData.length > 0) {
+                    const mostRecent = historicalData[0]; // First item is newest due to our sorting
+                    const recentTimestamp = parseInt(mostRecent.timestamp);
+                    
+                    if (!lastUpdateTime || recentTimestamp > lastUpdateTime) {
+                        lastUpdateTime = recentTimestamp;
+                    }
+                }
+                
+                // If we have data from within the last 5 minutes, consider system online
+                if (lastUpdateTime && (now - lastUpdateTime) < 300) { // 5 minutes
+                    isOnline = true;
+                }
+            }
+            
+            // Method 3: Check if we're receiving any data at all
+            if (!isOnline && (latestData || historicalData.length > 0)) {
+                // If we have any recent data, the system is likely online
+                isOnline = true;
+            }
+            
+            if (isOnline) {
+                statusIndicator.className = 'status-indicator status-online';
+                statusText.textContent = 'Online';
+            } else {
+                statusIndicator.className = 'status-indicator status-error';
+                statusText.textContent = 'Offline';
+            }
+        }
+
+        function updateAlerts() {
+            const alertContainer = document.getElementById('alertContainer');
+            alertContainer.innerHTML = '';
+
+            if (!latestData) return;
+
+            // Check for critical water level
+            if (latestData.ultrasonic?.water_status === 'CRITICAL') {
+                showAlert('🚨 CRITICAL WATER LEVEL', 'Water level has reached critical threshold!', 'critical');
+            } else if (latestData.ultrasonic?.water_status === 'WARNING') {
+                showAlert('⚠️ WARNING WATER LEVEL', 'Water level is elevated - monitor closely', 'warning');
+            }
+
+            // Check for float alarm
+            if (latestData.float?.alarm_active) {
+                showAlert('🎈 FLOAT ALARM', 'Float sensor indicates high water level!', 'critical');
+            }
+
+            // Check for heavy rain
+            const rainStatus = latestData.rainfall?.intensity_status;
+            if (rainStatus === 'HEAVY' || rainStatus === 'VERY_HEAVY') {
+                showAlert('🌧️ HEAVY RAINFALL', `Current rainfall intensity: ${rainStatus.replace('_', ' ')}`, 'warning');
+            }
+
+            // Check for sensor issues - IMPROVED LOGIC
+            const hasValidReading = latestData.ultrasonic?.distance_mm > 0;
+            const isExplicitlyInvalid = latestData.ultrasonic?.is_valid === false;
+            
+            if (isExplicitlyInvalid || (!hasValidReading && latestData.ultrasonic?.distance_mm === 0)) {
+                showAlert('📡 SENSOR ISSUE', 'Ultrasonic sensor readings may be invalid', 'warning');
+            }
+        }
+
+        function showAlert(title, message, type) {
+            const alertContainer = document.getElementById('alertContainer');
+            const alertBox = document.createElement('div');
+            alertBox.className = 'alert-box';
+            alertBox.innerHTML = `
+                <span class="alert-icon">⚠️</span>
+                <strong>${title}</strong><br>
+                ${message}
+            `;
+            alertContainer.appendChild(alertBox);
+        }
+
+        function showError(message) {
+            const alertContainer = document.getElementById('alertContainer');
+            const errorBox = document.createElement('div');
+            errorBox.className = 'error-message';
+            errorBox.textContent = 'Error: ' + message;
+            alertContainer.appendChild(errorBox);
+            
+            // Auto-remove after 10 seconds
+            setTimeout(() => {
+                if (errorBox.parentNode) {
+                    errorBox.parentNode.removeChild(errorBox);
+                }
+            }, 10000);
+        }
+
+        function getStatusClass(status) {
+            switch (status?.toUpperCase()) {
+                case 'NORMAL': return 'status-normal';
+                case 'WATCH': return 'status-watch';
+                case 'WARNING': return 'status-warning';
+                case 'CRITICAL': return 'status-critical';
+                default: return 'status-normal';
+            }
+        }
+
+        function getRainStatusClass(status) {
+            switch (status) {
+                case 'NO_RAIN': return 'status-normal';
+                case 'LIGHT': return 'status-watch';
+                case 'MODERATE': return 'status-warning';
+                case 'HEAVY':
+                case 'VERY_HEAVY': return 'status-critical';
+                default: return 'status-normal';
+            }
+        }
+
+        function getRainStatusText(status) {
+            return status.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function formatUptime(timestamp) {
+            if (!timestamp) return '--';
+            const now = Math.floor(Date.now() / 1000);
+            const diff = now - timestamp;
+            const hours = Math.floor(diff / 3600);
+            const minutes = Math.floor((diff % 3600) / 60);
+            return `${hours}h ${minutes}m`;
+        }
+
+        // Make refreshData available globally
+        window.refreshData = function() {
+            const button = document.querySelector('.refresh-button');
+            button.classList.add('loading');
+            button.textContent = '🔄 Refreshing...';
+            
+            loadData();
+            
+            setTimeout(() => {
+                button.classList.remove('loading');
+                button.textContent = '🔄 Refresh Data';
+            }, 2000);
+        };
+
+        // Debug helper
+        window.debugFirebase = function() {
+            console.log('🔍 Firebase Debug Info:');
+            console.log('Latest data:', latestData);
+            console.log('Historical data count:', historicalData.length);
+            console.log('Last 5 readings:', historicalData.slice(0, 5));
+        };
+    </script>
+</body>
+</html>
