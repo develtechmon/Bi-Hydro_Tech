@@ -13,14 +13,14 @@
 #include "addons/RTDBHelper.h"
 
 //======= FIREBASE CREDENTIALS (FIXED) =============
-#define WIFI_SSID "Galaxy S24 Ultra 0997"
-#define WIFI_PASSWORD "Lukas@92"
+#define WIFI_SSID "Redmi Note 13 Pro+ 5G"
+#define WIFI_PASSWORD "JU@n5091"
 
 #define API_KEY "AIzaSyArWYq8-Zog6C_kjwXjp_tdhwLTHDatp9Y"
 #define DATABASE_URL "https://bi-hydro-tech-2b024-default-rtdb.asia-southeast1.firebasedatabase.app/"
 
 #define USER_EMAIL "choosetheright92@gmail.com"
-#define USER_PASSWORD "Eldernangkai92"
+#define USER_PASSWORD ""
 
 // Firebase objects
 FirebaseData fbdo;
